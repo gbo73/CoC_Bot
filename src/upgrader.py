@@ -1040,9 +1040,18 @@ class Upgrader:
                     final_builders = get_home_builders(1)
                     if upgraded is not None:
                         upgraded = upgraded.lower()
-                        if final_builders < initial_builders: upgrades_started.append(upgraded)
-                        elif final_builders == initial_builders and upgraded != "wall": break
-                    else: break
+
+                        if final_builders < initial_builders:
+                            upgrades_started.append(upgraded)
+
+                        elif upgraded == "wall":
+                            print("Wall upgrade failed or not enough resources")
+                            break
+
+                        else:
+                            break
+                    else:
+                        break
                 except (KeyboardInterrupt, SystemExit): raise
                 except: pass
         if not Task_Handler.builder_apprentice_excluded():
