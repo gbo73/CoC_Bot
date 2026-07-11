@@ -1,12 +1,28 @@
-.vscode
-.venv
-.DS_Store
-build
-dist
-debug
+# Python temporary files
+__pycache__/
 *.pyc
+.venv/
+
+# VS Code / system files
+.vscode/
+.DS_Store
+
+# Build files
+build/
+dist/
 *.spec
+
+# Bot debug output
+debug/
+src/debug_deploy/
+
+# Temporary attacker versions
+src/attacker_*.py
+
+# Local configuration and generated data
 src/cache.json
 src/configs.py
+app/data/
+
+# Local scripts
 scripts/start.sh
-app/data

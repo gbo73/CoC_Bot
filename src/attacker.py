@@ -35,6 +35,151 @@ class Attacker:
             timeout=timeout
         )
 
+    def claim_free_reinforcements(self, timeout=5):
+        """
+        Purpose:
+        Claim free Clan Castle reinforcements when the FREE button
+        is visible in the My Army panel.
+        """
+
+        import time
+
+        free_x, free_y = Frame_Handler.locate(
+            self.assets["free_reinforcements"],
+            thresh=0.85
+        )
+
+        if free_x is None or free_y is None:
+            print("Free reinforcements not available")
+            return False
+
+        print(
+            "Free reinforcements detected at",
+            free_x,
+            free_y
+        )
+
+        Input_Handler.click(
+            free_x,
+            free_y
+        )
+
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            confirm_x, confirm_y = Frame_Handler.locate(
+                self.assets["confirm_reinforcements"],
+                thresh=0.85
+            )
+
+            if confirm_x is not None and confirm_y is not None:
+                print(
+                    "Confirm reinforcements detected at",
+                    confirm_x,
+                    confirm_y
+                )
+
+                Input_Handler.click(
+                    confirm_x,
+                    confirm_y
+                )
+
+                time.sleep(1.00)
+
+                print("Free reinforcements claimed")
+                return True
+
+            time.sleep(0.20)
+
+        print("Confirm reinforcements button not found")
+        return False
+
+    def get_attack_resources(self):
+        """
+        Purpose:
+        Read the available gold and elixir displayed during matchmaking.
+        """
+
+        print("### GET ATTACK RESOURCES CALLED ###")
+        section = Frame_Handler.get_frame_section(
+            0.00,
+            0.10,
+            0.27,
+            0.32,
+            high_contrast=True,
+            thresh=200
+        )
+
+        if configs.DEBUG:
+            Frame_Handler.save_frame(
+                section,
+                "debug/attack_resources.png"
+            )
+
+        import cv2
+
+        # Purpose: Enlarge resource numbers to improve OCR,
+        # especially leading digits such as the first "1".
+        section = cv2.resize(
+            section,
+            None,
+            fx=3,
+            fy=3,
+            interpolation=cv2.INTER_CUBIC
+        )
+
+        text = OCR_Handler.get_text(section)
+
+        print("Attack resources OCR:", text)
+
+        values = []
+
+        for value in text:
+            original_digits = "".join(
+                character
+                for character in value
+                if character.isdigit()
+            )
+
+            # Ignore labels and OCR noise such as "Available Loot:"
+            if len(original_digits) < 3:
+                continue
+
+            number = int(original_digits)
+            values.append(number)
+
+        # Keep only the last three detected numbers:
+        # gold, elixir and dark elixir
+        values = values[-3:]
+
+        if len(values) < 3:
+            raise Exception(
+                "Failed to read attack gold, elixir and dark elixir"
+            )
+
+        gold = values[0]
+        elixir = values[1]
+        dark_elixir = values[2]
+
+        # OCR sometimes drops the first digit of dark elixir.
+        # Example: 1838 may be read as 838.
+        if dark_elixir < 1000:
+            dark_elixir += 1000
+
+        print(
+            "Available resources |",
+            "gold =", gold,
+            "| elixir =", elixir,
+            "| dark_elixir =", dark_elixir
+        )
+
+        return {
+            "gold": gold,
+            "elixir": elixir,
+            "dark_elixir": dark_elixir
+        }
+
+
     def start_normal_attack(self, timeout=60):
         import time
         
@@ -62,10 +207,88 @@ class Attacker:
         
         # Wait until "end battle" button is found
         start_time = time.time()
+        search_count = 0
+
         while time.time() - start_time < timeout:
-            x, y = Frame_Handler.locate(self.assets["end_battle"], thresh=0.9)
-            if x is not None and y is not None: return True
+            x, y = Frame_Handler.locate(
+                self.assets["end_battle"],
+                thresh=0.9
+            )
+
+            if x is not None and y is not None:
+                try:
+                    print("### START RESOURCE CHECK ###")
+
+                    resources = self.get_attack_resources()
+
+                    gold_ok = (
+                        resources["gold"]
+                        >= MIN_ATTACK_GOLD
+                    )
+
+                    elixir_ok = (
+                        resources["elixir"]
+                        >= MIN_ATTACK_ELIXIR
+                    )
+
+                    dark_elixir_ok = (
+                        resources["dark_elixir"]
+                        >= MIN_ATTACK_DARK_ELIXIR
+                    )
+
+                    print(
+                        "Resource test |",
+                        "gold_ok =", gold_ok,
+                        "| elixir_ok =", elixir_ok,
+                        "| dark_elixir_ok =", dark_elixir_ok
+                    )
+
+                except Exception as e:
+                    print(
+                        "Attack resource test failed:",
+                        e,
+                        "- retrying in 2 seconds"
+                    )
+
+                    time.sleep(2.00)
+                    continue
+
+                if (
+                    gold_ok
+                    and elixir_ok
+                    and dark_elixir_ok
+                ):
+                    print("Resources accepted - starting attack")
+                    return True
+
+                search_count += 1
+
+                print(
+                    "Resources too low - clicking Next |",
+                    "search =", search_count,
+                    "/",
+                    MAX_ATTACK_SEARCHES
+                )
+
+                if search_count >= MAX_ATTACK_SEARCHES:
+                    print("Maximum opponent searches reached")
+                    return False
+
+                # Click the Next button
+                Input_Handler.click(
+                    0.90,
+                    0.72
+                )
+
+                # Wait for the next opponent to load
+                time.sleep(6.00)
+
+                # Restart timeout for the newly loaded opponent
+                start_time = time.time()
+                continue
+
             time.sleep(0.1)
+
         return False
     
     def start_builder_attack(self, timeout=60):
@@ -198,46 +421,212 @@ class Attacker:
         output.append(type_gaps_seen)
         return output
     
-    def deploy_troops(self, card_centers, available_slots=None, card_types=None, card_counts=None):
-        import time, numpy as np
-        
+    def deploy_troops(
+        self,
+        card_centers,
+        available_slots=None,
+        card_types=None,
+        card_counts=None
+    ):
+        import time
+        import numpy as np
+
         def card_gray(card_center):
-            section = Frame_Handler.get_frame_section(card_center-0.01, 0.89, card_center+0.01, 0.91, grayscale=False)
-            return np.all(section[:, :, 0] == section[:, :, 1]) and np.all(section[:, :, 1] == section[:, :, 2])
-        
-        if available_slots is None: available_slots = [1] * len(card_centers)
-        if card_types is None: card_types = [None] * len(card_centers)
-        if card_counts is None: card_counts = [0] * len(card_centers)
-        
-        # Start holding deploy position w/ secondary touch pointer
-        Input_Handler.down(0.5, 0.8, pointer=1)
-        
+            section = Frame_Handler.get_frame_section(
+                card_center - 0.01,
+                0.89,
+                card_center + 0.01,
+                0.91,
+                grayscale=False
+            )
+
+            return (
+                np.all(section[:, :, 0] == section[:, :, 1])
+                and np.all(section[:, :, 1] == section[:, :, 2])
+            )
+
+        def deploy_on_line(card_center, troop_count, behind=False):
+            """
+            Purpose:
+            Deploy troops one by one using different test coordinates.
+            """
+
+            if behind:
+                troop_name = "balloon"
+                deploy_positions = [
+                    (0.48, 0.80),
+                    (0.46, 0.80),
+                    (0.50, 0.80),
+                    (0.44, 0.80),
+                    (0.52, 0.80),
+                    (0.42, 0.80),
+                    (0.54, 0.80),
+                    (0.40, 0.80),
+                    (0.56, 0.80),
+                    (0.44, 0.80),
+                    (0.52, 0.80),
+                    (0.42, 0.80),
+                    (0.54, 0.80),
+                ]
+            else:
+                troop_name = "dragon"
+                deploy_positions = [
+                    (0.48, 0.80),
+                    (0.46, 0.80),
+                    (0.50, 0.80),
+                    (0.44, 0.80),
+                    (0.52, 0.80),
+                    (0.42, 0.80),
+                    (0.54, 0.80),
+                    (0.40, 0.80),
+                    (0.56, 0.80),
+                    (0.44, 0.80),
+                    (0.52, 0.80),
+                    (0.42, 0.80),
+                    (0.48, 0.80),
+                    (0.50, 0.80),                    
+                ]
+
+            print("")
+            print("========================================")
+            print("DEPLOY START")
+            print("troop_name =", troop_name)
+            print("card_center =", card_center)
+            print("troop_count =", troop_count)
+            print("========================================")
+
+            Input_Handler.click(card_center, 0.9)
+            time.sleep(0.30)
+
+            for click_number in range(1, troop_count + 1):
+                current_x, current_y = deploy_positions[
+                    click_number - 1
+                ]
+
+                # gray_before = card_gray(card_center)
+
+                print(
+                    "DEPLOY CLICK |",
+                    "troop =", troop_name,
+                    "| click =", click_number,
+                    "/", troop_count,
+                    "| x =", current_x,
+                    "| y =", current_y,
+                    "| card_center =", card_center
+                )
+
+                Input_Handler.click(
+                    current_x,
+                    current_y
+                )
+
+                time.sleep(0.20)
+
+                # gray_after = card_gray(card_center)
+
+                # print(
+                #     "DEPLOY RESULT |",
+                #     "troop =", troop_name,
+                #     "| click =", click_number,
+                #     "| x =", current_x,
+                #     "| y =", current_y,
+                #     "| gray_after =", gray_after
+                # )
+
+            print("DEPLOY END =", troop_name)
+            print("")
+
+        if available_slots is None:
+            available_slots = [1] * len(card_centers)
+
+        if card_types is None:
+            card_types = [None] * len(card_centers)
+
+        if card_counts is None:
+            card_counts = [0] * len(card_centers)
+
+        # Keeps the troop number between successive calls to deploy_troops()
+        if not hasattr(self, "_normal_troop_slot_index"):
+            self._normal_troop_slot_index = 0
+
         for i in range(len(card_centers)):
-            if available_slots[i]:
-                # Select slot
-                Input_Handler.click(card_centers[i], 0.9)
-                
-                # Deploy selected slot
-                if card_types[i] in ["hero", "clan"]:
-                    Input_Handler.click(0.5, 0.8)
-                elif card_types[i] == "troop":
-                    Input_Handler.down(0.5, 0.8, pointer=0)
-                    end_time = time.monotonic() + TROOP_DEPLOY_TIME
-                    while time.monotonic() < end_time and not card_gray(card_centers[i]): time.sleep(0.01)
-                    Input_Handler.up(pointer=0)
-                elif card_types[i] == "spell":
-                    n = card_counts[i]
-                    rxs = np.random.uniform(0.35, 0.65, n)
-                    rys = np.random.uniform(0.45, 0.55, n)
-                    for coord in zip(rxs, rys):
-                        Input_Handler.click(*coord)
+
+            if not available_slots[i]:
+                continue
+
+            card_center = card_centers[i]
+            card_type = card_types[i]
+
+            if card_type == "troop":
+
+                # First troop slot: 12 dragons across the bottom line
+                if self._normal_troop_slot_index == 0:
+                    print("Deploying 12 dragons")
+                    deploy_on_line(
+                        card_center=card_center,
+                        troop_count=14,
+                        behind=False
+                    )
+
+                # Second troop slot: 13 balloons slightly behind
+                elif self._normal_troop_slot_index == 1:
+                    print("Deploying 13 balloons")
+                    deploy_on_line(
+                        card_center=card_center,
+                        troop_count=13,
+                        behind=True
+                    )
+
+                # Other normal troops: preserve original behavior
                 else:
-                    Input_Handler.click(0.5, 0.8, n=max(0, card_counts[i]))
-        
-        # Release secondary pointer
-        Input_Handler.up(pointer=1)
-        
-        # Unselect last card
+                    Input_Handler.click(card_center, 0.9)
+                    time.sleep(0.15)
+
+                    Input_Handler.down(0.5, 0.8, pointer=0)
+
+                    end_time = time.monotonic() + TROOP_DEPLOY_TIME
+
+                    while (
+                        time.monotonic() < end_time
+                        and not card_gray(card_center)
+                    ):
+                        time.sleep(0.01)
+
+                    Input_Handler.up(pointer=0)
+
+                self._normal_troop_slot_index += 1
+
+            elif card_type in ["hero", "clan"]:
+
+                Input_Handler.click(card_center, 0.9)
+                time.sleep(0.15)
+                Input_Handler.click(0.5, 0.8)
+
+            elif card_type == "spell":
+
+                Input_Handler.click(card_center, 0.9)
+                time.sleep(0.15)
+
+                n = card_counts[i]
+                rxs = np.random.uniform(0.35, 0.65, n)
+                rys = np.random.uniform(0.45, 0.55, n)
+
+                for coord in zip(rxs, rys):
+                    Input_Handler.click(*coord)
+                    time.sleep(0.10)
+
+            else:
+
+                Input_Handler.click(card_center, 0.9)
+                time.sleep(0.15)
+
+                Input_Handler.click(
+                    0.5,
+                    0.8,
+                    n=max(0, card_counts[i])
+                )
+
+        # Unselect the final card
         Input_Handler.click(0.01, 0.9)
     
     def complete_normal_attack(self, restart=True, exclude_clan_troops=False):
@@ -245,6 +634,9 @@ class Attacker:
         
         Input_Handler.zoom(dir="out")
         Input_Handler.swipe_up()
+
+        # Purpose: Restart troop slot numbering for every new attack
+        self._normal_troop_slot_index = 0
         
         type_gaps_seen = 0
         total_slots_seen = 0
@@ -284,10 +676,12 @@ class Attacker:
                 break
         
         # Close and reopen CoC to auto complete battle
-        if restart:
-            start_coc()
-        else:
-            stop_coc()
+        #if restart:
+        #    start_coc()
+        #else:
+        #    stop_coc()
+        #ADD BY GBO 10 juil. 2026 03:30 PM
+        print("Skipping CoC restart/stop after attack")
     
     def complete_builder_attack(self, restart=True):
         import numpy as np
@@ -299,10 +693,11 @@ class Attacker:
         self.deploy_troops(card_centers, card_counts=[4]*len(card_centers))
         
         # Close and reopen CoC to auto complete battle
-        if restart:
-            start_coc()
-        else:
-            stop_coc()
+        # if restart:
+        #     start_coc()
+        # else:
+        #     stop_coc()
+        print("Skipping CoC restart/stop after attack")
     
     # ============================================================
     # ⚔️ Attack Management

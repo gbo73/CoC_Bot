@@ -147,6 +147,8 @@ class Upgrader:
 
     def collect_builder_attack_elixir(self):
         import time
+
+        print("Trying to collect builder attack elixir cart...")
         
         # Align view to top right corner
         Input_Handler.zoom(dir="out")
@@ -428,20 +430,42 @@ class Upgrader:
                 frame = Frame_Handler.get_frame(grayscale=False)
                 frame_gray = Frame_Handler.grayscale(frame)
                 x_sug, y_sug = Frame_Handler.locate(sug_template, frame, thresh=0.70, grayscale=False)
-                res = Frame_Handler.batch_locate(templates, frame_gray, thresh=0.80, ref="lc", return_all=True)
+                # res = Frame_Handler.batch_locate(templates, frame_gray, thresh=0.80, ref="lc", return_all=True)
+                res = Frame_Handler.batch_locate(
+                    templates,
+                    frame_gray,
+                    thresh=0.80,
+                    ref="lc",
+                    return_all=True
+                )
+
+                print("Wall detection results:", res)
+
                 for items in res:
                     for x, y in items:
                         if x is not None and y is not None and (y_sug is None or (y_sug is not None and y > y_sug)):
                             section = Frame_Handler.crop(frame, menu_left, y-0.02, menu_right, y+0.02)
                             sufficient_resources = not check_color((255, 136, 127), section, tol=10)
+
+                            print(
+                                "Wall candidate:",
+                                "x=", x,
+                                "y=", y,
+                                "resources=", sufficient_resources,
+                                "alignment=", abs(x - menu_left)
+                            )
+
                             if sufficient_resources:
                                 # Check that located upgrade name is left aligned
-                                if abs(x - menu_left) < 0.01:
+                                if abs(x - menu_left) < 0.03:
                                     return x, y
                                 # Or if it is left aligned to "New" label
                                 new_x, new_y = Frame_Handler.locate(render_text("New", "CCBackBeat", 27, color=(13, 255, 13)), filter_color((13, 255, 13), section), thresh=0.70, grayscale=False, ref="rc")
                                 if new_x is not None and new_y is not None and abs(x - (menu_left + new_x/section.shape[1])) < 0.05:
+                                    print("Wall accepted by New alignment:", x, y)
                                     return x, y
+                                
+                print("No valid Wall candidate accepted")
                 return None, None
             
             x, y = self._scroll_locate_upgrade(
@@ -481,11 +505,8 @@ class Upgrader:
     
     @require_exit()
     def home_upgrade(self):
-        if not Task_Handler.home_base_priority_excluded():
-            for priority_level in configs.HOME_BASE_UPGRADE_PRIORITY:
-                upgrade_name = self.home_specified_upgrade(priority_level)
-                if upgrade_name is not None: return upgrade_name
-        return self.home_random_upgrade()
+        # Purpose: upgrade walls only; all other Home Base upgrades are manual.
+        return self.home_specified_upgrade("Wall")
     
     @require_exit()
     def assign_builder_apprentice(self):
@@ -851,12 +872,9 @@ class Upgrader:
     
     @require_exit()
     def builder_upgrade(self):
-        if not Task_Handler.builder_base_priority_excluded():
-            for priority_level in configs.BUILDER_BASE_UPGRADE_PRIORITY:
-                upgrade_name = self.builder_specified_upgrade(priority_level)
-                if upgrade_name is not None: return upgrade_name
-        return self.builder_random_upgrade()
-    
+        # Purpose: upgrade Builder Base walls only.
+        return self.builder_specified_upgrade("Wall")
+        
     @require_exit()
     def builder_lab_random_upgrade(self):
         import time, re, numpy as np
@@ -1051,6 +1069,10 @@ class Upgrader:
         
         Input_Handler.zoom(dir="out")
         Input_Handler.swipe_down()
+
+        # Collect visible Builder Base resources
+        self.collect_resources()
+        time.sleep(0.5)
         
         # Building upgrades
         upgrades_started = []

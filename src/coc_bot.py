@@ -57,10 +57,13 @@ class CoC_Bot:
                         self.attacker.run_builder_base()
                     
                     to_home_base()
-                    stop_coc()
+                    #stop_coc()
+                    print("Skipping stop_coc() at end of cycle")
                     update_status(time.time())
                 
+                print(f"Cycle finished. Waiting {CHECK_INTERVAL} minute(s) before next cycle...")
                 time.sleep(60 * CHECK_INTERVAL)
+                print("Starting next cycle...")
             
             except (KeyboardInterrupt, SystemExit): raise
             except Exception as e:

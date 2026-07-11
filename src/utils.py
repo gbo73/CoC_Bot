@@ -498,24 +498,28 @@ def stop_coc():
 def update_coc(timeout=10, from_in_game=False):
     import uiautomator2 as u2
     conn = ADB_Manager.uiautomator_device
+
     if not from_in_game:
-        ADB_Manager.adbutils_device.shell('am start -a android.intent.action.VIEW -d "market://details?id=com.supercell.clashofclans"')
+        ADB_Manager.adbutils_device.shell(
+            'am start -a android.intent.action.VIEW -d "market://details?id=com.supercell.clashofclans"'
+        )
     else:
         try:
             conn(text="UPDATE").click(timeout=0)
-        except (KeyboardInterrupt, SystemExit): raise
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except:
-            print("Failed to click update button")
-            if not from_in_game: to_system_home()
             return
-    
+
     try:
         conn(text="Update").click(timeout=timeout)
-    except (KeyboardInterrupt, SystemExit): raise
+    except (KeyboardInterrupt, SystemExit):
+        raise
     except:
-        print("Failed to click update button")
         pass
-    if not from_in_game: to_system_home()
+
+    if not from_in_game:
+        to_system_home()
 
 def to_builder_base(ref_cache=False):
     import cv2, time, numpy as np
@@ -683,7 +687,7 @@ class BlueStacks_Manager:
         
         cached = Cache_Manager.get("bluestacks_pids", {}).get(cls._internal_instance_name, None)
         if cached is not None and psutil.pid_exists(cached):
-            self._instance_pid = cached
+            cls._instance_pid = cached
             return cached
 
         return None
@@ -867,7 +871,7 @@ class BlueStacks_Manager:
         cls.stop()
         cls.start()
 
-Exit_Handler.register(BlueStacks_Manager.stop)
+#Exit_Handler.register(BlueStacks_Manager.stop)
 
 class Task_Handler:
     
