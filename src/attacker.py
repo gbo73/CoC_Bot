@@ -35,6 +35,34 @@ class Attacker:
             timeout=timeout
         )
 
+    def request_free_reinforcements(self, timeout=5):
+        """
+        Purpose:
+        Open My Army, then claim free reinforcements when available.
+        """
+
+        import time
+
+        print("### REINFORCEMENT CHECK CALLED ###")
+        print("Opening My Army")
+
+        Input_Handler.click(
+            0.04,
+            0.74
+        )
+
+        time.sleep(1.50)
+
+        return self.claim_free_reinforcements(
+            timeout=timeout
+        )
+    
+        # Close My Army before continuing
+        Input_Handler.click_exit()
+        time.sleep(1.00)
+
+        return claimed   
+
     def claim_free_reinforcements(self, timeout=5):
         """
         Purpose:
@@ -59,40 +87,36 @@ class Attacker:
             free_y
         )
 
+        # Open Add Reinforcements
         Input_Handler.click(
             free_x,
             free_y
         )
 
-        start_time = time.time()
+        time.sleep(1.50)
 
-        while time.time() - start_time < timeout:
-            confirm_x, confirm_y = Frame_Handler.locate(
-                self.assets["confirm_reinforcements"],
-                thresh=0.85
-            )
+        print("Selecting reinforcement troop")
 
-            if confirm_x is not None and confirm_y is not None:
-                print(
-                    "Confirm reinforcements detected at",
-                    confirm_x,
-                    confirm_y
-                )
+        # Click the balloon card
+        Input_Handler.click(
+            0.13,
+            0.36
+        )
 
-                Input_Handler.click(
-                    confirm_x,
-                    confirm_y
-                )
+        time.sleep(0.80)
 
-                time.sleep(1.00)
+        print("Confirming reinforcements")
 
-                print("Free reinforcements claimed")
-                return True
+        # Click the green Confirm button
+        Input_Handler.click(
+            0.53,
+            0.73
+        )
 
-            time.sleep(0.20)
+        time.sleep(1.50)
 
-        print("Confirm reinforcements button not found")
-        return False
+        print("Free reinforcements claimed")
+        return True
 
     def get_attack_resources(self):
         """
@@ -708,19 +732,37 @@ class Attacker:
         import time
         
         try:
+            print("### RUN HOME BASE STARTED ###")
+
             # Make sure in home base
             start_time = time.time()
+
             while time.time() - start_time < timeout:
                 try:
                     get_home_builders(1)
+                    print("### HOME BASE DETECTED ###")
                     break
-                except (KeyboardInterrupt, SystemExit): raise
-                except: pass
-            if time.time() - start_time >= timeout: return
+
+                except (KeyboardInterrupt, SystemExit):
+                    raise
+
+                except Exception as e:
+                    print("Home base detection failed:", e)
+                    time.sleep(1.00)
+
+            if time.time() - start_time >= timeout:
+                print("### HOME BASE DETECTION TIMEOUT ###")
+                return
+
+            # print("### CALLING REINFORCEMENT CHECK ###")
+            # self.request_free_reinforcements()
             
             # Complete an attack
             if self.start_normal_attack(timeout):
-                self.complete_normal_attack(restart=restart, exclude_clan_troops=EXCLUDE_CLAN_TROOPS)
+                self.complete_normal_attack(
+                    restart=restart,
+                    exclude_clan_troops=EXCLUDE_CLAN_TROOPS
+                )
         
         except Exception as e:
             if configs.DEBUG: print("attack_home_base", e)

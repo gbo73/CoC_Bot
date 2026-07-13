@@ -40,8 +40,31 @@ class Upgrader:
         )
 
     def _click_home_confirm(self, timeout=5):
+        """
+        Purpose:
+        Prefer the gold button for wall upgrades.
+        """
+
+        def locate_confirm():
+            xys = Frame_Handler.locate(
+                self.assets["confirm"],
+                grayscale=False,
+                thresh=0.85,
+                use_cached=True,
+                return_all=True
+            )
+
+            if len(xys) == 0:
+                return None, None
+
+            # Gold button is the leftmost button
+            return sorted(
+                xys,
+                key=lambda xy: xy[0]
+            )[0]
+
         return click_with_timeout(
-            lambda: Frame_Handler.locate(self.assets["confirm"], grayscale=False, thresh=0.85, use_cached=True),
+            locate_confirm,
             timeout=timeout
         )
 
