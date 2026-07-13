@@ -710,23 +710,85 @@ class Attacker:
         #else:
         #    stop_coc()
         #ADD BY GBO 10 juil. 2026 03:30 PM
-        print("Skipping CoC restart/stop after attack")
+        print("Waiting for Return Home button")
+
+        if self._click_return_home(timeout=240):
+            print("Return Home clicked")
+        else:
+            print("Return Home button not found")
+
     
     def complete_builder_attack(self, restart=True):
+        import time
         import numpy as np
-        
-        Input_Handler.zoom(dir="out")
-        Input_Handler.swipe_up()
-        
-        card_centers = np.linspace(0.1, 0.9, 11)
-        self.deploy_troops(card_centers, card_counts=[4]*len(card_centers))
-        
-        # Close and reopen CoC to auto complete battle
-        # if restart:
-        #     start_coc()
-        # else:
-        #     stop_coc()
-        print("Skipping CoC restart/stop after attack")
+
+        max_stages = 2
+
+        for stage in range(1, max_stages + 1):
+            print(
+                "### BUILDER ATTACK STAGE",
+                stage,
+                "###"
+            )
+
+            Input_Handler.zoom(dir="out")
+            Input_Handler.swipe_up()
+
+            card_centers = np.linspace(
+                0.1,
+                0.9,
+                11
+            )
+
+            self.deploy_troops(
+                card_centers,
+                card_counts=[4] * len(card_centers)
+            )
+
+            print(
+                "Builder troops deployed for stage",
+                stage
+            )
+
+            start_time = time.time()
+
+            while time.time() - start_time < 180:
+                return_x, return_y = Frame_Handler.locate(
+                    self.assets["return_home"],
+                    thresh=0.85
+                )
+
+                if return_x is not None and return_y is not None:
+                    print("Builder battle finished")
+
+                    Input_Handler.click(
+                        return_x,
+                        return_y
+                    )
+
+                    time.sleep(2.00)
+                    return
+
+                next_x, next_y = Frame_Handler.locate(
+                    self.assets["battle_starts_in"],
+                    thresh=0.85
+                )
+
+                if (
+                    stage < max_stages
+                    and next_x is not None
+                    and next_y is not None
+                ):
+                    print(
+                        "Builder second stage detected"
+                    )
+
+                    time.sleep(3.00)
+                    break
+
+                time.sleep(0.50)
+
+        print("Builder attack stage detection timeout")
     
     # ============================================================
     # ⚔️ Attack Management
