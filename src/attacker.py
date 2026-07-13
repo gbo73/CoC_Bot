@@ -147,8 +147,8 @@ class Attacker:
         section = cv2.resize(
             section,
             None,
-            fx=3,
-            fy=3,
+            fx=2,
+            fy=2,
             interpolation=cv2.INTER_CUBIC
         )
 
@@ -298,6 +298,11 @@ class Attacker:
                     print("Maximum opponent searches reached")
                     return False
 
+                # Do not click Next if the preparation time is nearly finished
+                if time.time() - start_time > 20:
+                    print("Resource check too slow - attacking current base")
+                    return True
+                
                 # Click the Next button
                 Input_Handler.click(
                     0.90,
