@@ -1364,9 +1364,10 @@ class Frame_Handler:
         if use_cached and cls.cached_frame is not None:
             frame = cls.cached_frame.copy()
         else:
-            try: frame = ADB_Manager.adbutils_device.framebuffer() # faster than screenshot but potentially unstable
-            except (KeyboardInterrupt, SystemExit): raise
-            except: frame = ADB_Manager.adbutils_device.screenshot()
+            #try: frame = ADB_Manager.adbutils_device.framebuffer() # faster than screenshot but potentially unstable
+            #except (KeyboardInterrupt, SystemExit): raise
+            #except: frame = ADB_Manager.adbutils_device.screenshot()
+            frame = ADB_Manager.adbutils_device.screenshot()
             frame = np.array(frame)[..., :3]
             frame = cv2.resize(frame, WINDOW_DIMS, interpolation=cv2.INTER_NEAREST)
             cls.cached_frame = frame.copy()

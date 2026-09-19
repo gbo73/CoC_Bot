@@ -710,12 +710,12 @@ class Attacker:
         #else:
         #    stop_coc()
         #ADD BY GBO 10 juil. 2026 03:30 PM
-        print("Waiting for Return Home button")
+        print("Clicking Return Home")
 
-        if self._click_return_home(timeout=240):
-            print("Return Home clicked")
-        else:
-            print("Return Home button not found")
+        time.sleep(1.5)
+        Input_Handler.click(0.423, 0.758)
+
+        print("Return Home clicked")
 
     
     def complete_builder_attack(self, restart=True):

@@ -22,6 +22,14 @@ class CoC_Bot:
                 if not running():
                     time.sleep(1)
                     continue
+
+                # BlueStacks may occasionally crash
+                if not BlueStacks_Manager.check():
+                    print("BlueStacks is not running - restarting...")
+                    BlueStacks_Manager.restart()
+                    ADB_Manager.connect(60)
+                    print("BlueStacks restarted and ADB reconnected")
+
                 
                 if start_coc():
                     update_status("now")
@@ -62,7 +70,8 @@ class CoC_Bot:
                     update_status(time.time())
                 
                 print(f"Cycle finished. Waiting {CHECK_INTERVAL} minute(s) before next cycle...")
-                time.sleep(60 * CHECK_INTERVAL)
+                #time.sleep(60 * CHECK_INTERVAL)
+                time.sleep(5)
                 print("Starting next cycle...")
             
             except (KeyboardInterrupt, SystemExit): raise
